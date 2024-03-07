@@ -1,74 +1,67 @@
 #!/usr/bin/python3
-"""
-Write a Fabric script that generates a .tgz
-"""
-from fabric.api import (local)
-import tarfile
+'''
+Fabric script that generates a `.tgz` archive from
+the contents of the `web_static` folder of your
+AirBnB Clone repo, using the function `do_pack`.
+'''
+from os import makedirs
+from os.path import exists, basename
+from fabric.api import *
 from datetime import datetime
 
-import os
-# First we import the Fabric api
-from fabric.api import *
 
-env.hosts = ['35.175.135.174', '18.234.169.222']
-
-
+@runs_once
 def do_pack():
-    """
-    used to create a tar file.
-    """
-    try:
-        folder = "web_static"
-        tyme = datetime.now().strftime("%Y%m%d%H%M%S")
-        tar_name = "versions/web_static_{}.tgz".format(tyme)
-        local('mkdir -p versions')
-        local('tar -cvzf {} web_static'.format(tar_name))
-        return (tar_name)
-    except Exception:
-        return (None)
+    '''
+    On the local machine:
+        Creates `versions` dir and archives timestamped `web_static` inside.
+
+    Returns filepath on success, else `None`.
+    '''
+    if not exists('versions'):
+        makedirs('versions')
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filepath = 'versions/web_static_' + timestamp + '.tgz'
+    # local('echo ' + filepath)
+    pack = local('tar -cvzf ' + filepath + ' web_static')
+    return None if pack.failed else filepath
+
+
+env.hosts = ['35.237.166.85', '35.227.65.117']
 
 
 def do_deploy(archive_path):
-    """
-    Write a Fabric script (based on the file
-    1-pack_web_static.py) that distributes an archive
-     to your web servers, using the function
-    """
-    if (os.path.exists(archive_path)):
-        try:
-            f_name = archive_path.split('/')[-1]
-            name = f_name.split('.')[0]
-            store = '/data/web_static/releases/{}'.format(name)
-            rf_path = '/tmp/{}'.format(f_name)
-            l1 = '/data/web_static/current/web_static/*'
-            l2 = '/data/web_static/current'
-            run('mkdir -p /tmp')
-            run('mkdir -p {}'.format(store))
-            put(archive_path, '/tmp')
-            run('tar -xzvf {} -C {}'.format(rf_path, store))
-            run('rm -rf /tmp/{}'.format(f_name))
-            run('rm -rf /data/web_static/current')
-            run('ln -s {} /data/web_static/current'.format(store))
-            run('rsync -av --remove-source-files {}/web_static/* {}'
-                .format(store, store))
-            run('rm -rf {}/web_static'.format(store))
-            return (True)
-        except Exception:
-            return(False)
-    else:
-        return (False)
+    '''
+    On the local machine:
+       TODO description.
+
+    Returns `True` on success, else `False`.
+    '''
+    try:
+        tarfile = basename(archive_path)
+        if exists('/tmp/' + tarfile):
+            run('rm -rf /tmp/' + tarfile)
+        put(archive_path, '/tmp/')
+        dest = '/data/web_static/releases/' + tarfile.split('.')[0] + '/'
+        run('rm -rf ' + dest)
+        run('mkdir -p ' + dest)
+        run('tar -xzf /tmp/' + tarfile + ' -C ' + dest)
+        run('rm -r /tmp/' + tarfile)
+        run('mv ' + dest + 'web_static/* ' + dest)
+        run('rm -rf ' + dest + 'web_static')
+        run('unlink /data/web_static/current')
+        run('ln -sf ' + dest + ' /data/web_static/current')
+        print('New version deployed!')
+        return True
+    except Except:
+        return False
 
 
 def deploy():
-    """
-    Write a Fabric script (based on the file
-     2-do_deploy_web_static.py) that creates and
-    distributes an archive to your web servers,
-    using the function deploy.
-    """
-    a_path = do_pack()
-    if (a_path is None):
-        return (None)
+    '''Runs do_pack and do_deploy'''
+    filepath = do_pack()
+    if filepath:
+        exit_status = do_deploy(filepath)
+        return exit_status
     else:
-        res = do_deploy(a_path)
-        return (res)
+        return False
