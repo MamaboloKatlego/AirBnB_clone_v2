@@ -2,7 +2,6 @@
 """
 Module Docs
 """
-""" py script that runs an app with Flask framework """
 from flask import Flask, render_template
 from models import storage
 from models.state import State
